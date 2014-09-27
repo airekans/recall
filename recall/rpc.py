@@ -562,7 +562,7 @@ class TcpConnection(object):
                 self._finish_rpc(done, rpc_controller, None, req_data.is_async)
                 return True
         else:
-            logging.warning('flow id not found:', meta_info.flow_id)
+            logging.warning('flow id not found: %d' % meta_info.flow_id)
             return True
 
 
