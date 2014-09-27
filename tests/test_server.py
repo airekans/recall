@@ -1,4 +1,4 @@
-from monsit import rpc
+from recall import rpc
 from test_proto import test_pb2
 import psutil
 import GreenletProfiler
