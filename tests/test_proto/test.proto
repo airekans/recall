@@ -1,0 +1,19 @@
+package test;
+
+option py_generic_services = true;
+
+
+message TestRequest {
+    required string name = 1;
+    required int32 num = 2;
+}
+
+message TestResponse {
+    required int32 return_code = 1;
+    required string msg = 2;
+}
+
+
+service TestService {
+  rpc TestMethod (TestRequest) returns (TestResponse);
+}

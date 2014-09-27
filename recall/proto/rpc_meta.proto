@@ -1,0 +1,34 @@
+package rpc;
+
+option py_generic_services = true;
+
+enum ErrorCode {
+  SUCCESS = 0;
+  SERVER_SERVICE_ERROR = 1;
+  SERVER_SERVICE_TIMEOUT = 2;
+}
+
+message MetaInfo {
+    required int32 flow_id = 1;
+    required string service_name = 2;
+    required string method_name = 3;
+    required string msg_name = 4;
+    optional bool has_error = 30;
+}
+
+message ErrorResponse {
+    required ErrorCode err_code = 1;
+    required string err_msg = 2;
+}
+
+message HeartBeatRequest {
+    required int32 magic_num = 1;
+}
+
+message HeartBeatResponse {
+    required int32 return_code = 1;
+}
+
+service BuiltinService {
+  rpc HeartBeat (HeartBeatRequest) returns (HeartBeatResponse);
+}
