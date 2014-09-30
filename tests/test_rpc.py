@@ -2,6 +2,7 @@ from recall import rpc
 import unittest
 from test_proto import test_pb2
 from recall.proto import rpc_meta_pb2
+from recall import loadbalance
 import gevent
 
 
@@ -159,13 +160,13 @@ class LoadBalancerTest(unittest.TestCase):
         self.conn_cls = LoadBalancerTest.TcpConn
 
     def test_SingleLoadBalancer(self):
-        balancer = rpc.SingleConnLoadBalancer()
+        balancer = loadbalance.SingleConnLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111')]
         conn = balancer.get_connection_for_req(0, self.req, conns)
         self.assertIs(conn, conns[0])
 
     def test_SingleLoadBalancerWithMultipleConn(self):
-        balancer = rpc.SingleConnLoadBalancer()
+        balancer = loadbalance.SingleConnLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111'),
                  self.conn_cls('127.0.0.1:11112')]
         try:
@@ -175,14 +176,14 @@ class LoadBalancerTest(unittest.TestCase):
             pass
 
     def test_IncLoadBalancerWithSingleConn(self):
-        balancer = rpc.FixedLoadBalancer()
+        balancer = loadbalance.FixedLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111')]
         for flow_id in xrange(10):
             conn = balancer.get_connection_for_req(flow_id, self.req, conns)
             self.assertIs(conn, conns[0])
 
     def test_IncLoadBalancerWithMultipleConns(self):
-        balancer = rpc.FixedLoadBalancer()
+        balancer = loadbalance.FixedLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111'),
                  self.conn_cls('127.0.0.1:11112'),
                  self.conn_cls('127.0.0.1:11112')]
@@ -191,14 +192,14 @@ class LoadBalancerTest(unittest.TestCase):
             self.assertIs(conn, conns[flow_id % len(conns)])
 
     def test_RandomLoadBalancerWithSingleConn(self):
-        balancer = rpc.RandomLoadBalancer()
+        balancer = loadbalance.RandomLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111')]
         for flow_id in xrange(10):
             conn = balancer.get_connection_for_req(flow_id, self.req, conns)
             self.assertIs(conn, conns[0])
 
     def test_RandomLoadBalancerWithMultipleConns(self):
-        balancer = rpc.RandomLoadBalancer()
+        balancer = loadbalance.RandomLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111'),
                  self.conn_cls('127.0.0.1:11112'),
                  self.conn_cls('127.0.0.1:11113')]
@@ -217,14 +218,14 @@ class LoadBalancerTest(unittest.TestCase):
         self.assertEqual(10, count_sum)
 
     def test_ReqNumLoadBalancerWithSingleConn(self):
-        balancer = rpc.ReqNumLoadBalancer()
+        balancer = loadbalance.ReqNumLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111', send_task_num=2)]
         for flow_id in xrange(10):
             conn = balancer.get_connection_for_req(flow_id, self.req, conns)
             self.assertIs(conn, conns[0])
 
     def test_ReqNumLoadBalancerWithMultipleConns(self):
-        balancer = rpc.ReqNumLoadBalancer()
+        balancer = loadbalance.ReqNumLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111', send_task_num=3),
                  self.conn_cls('127.0.0.1:11112', send_task_num=2),
                  self.conn_cls('127.0.0.1:11113', send_task_num=1)]
@@ -238,14 +239,14 @@ class LoadBalancerTest(unittest.TestCase):
             self.assertIs(conn, conns[1])
 
     def test_DelayLoadBalancerWithSingleConn(self):
-        balancer = rpc.DelayLoadBalancer()
+        balancer = loadbalance.DelayLoadBalancer()
         conns = [self.conn_cls('127.0.0.1:11111', avg_delay=2)]
         for flow_id in xrange(10):
             conn = balancer.get_connection_for_req(flow_id, self.req, conns)
             self.assertIs(conn, conns[0])
 
     def test_DelayLoadBalancerWithMultipleConns(self):
-        balancer = rpc.DelayLoadBalancer(False)
+        balancer = loadbalance.DelayLoadBalancer(False)
         conns = [self.conn_cls('127.0.0.1:11111', avg_delay=0.3),
                  self.conn_cls('127.0.0.1:11112', avg_delay=0.2),
                  self.conn_cls('127.0.0.1:11113', avg_delay=0.1)]
@@ -265,7 +266,7 @@ class LoadBalancerTest(unittest.TestCase):
         print [(conn.get_avg_delay_per_min(), cnt) for conn, cnt in conn_map.iteritems()]
 
     def test_DelayLoadBalancerWithInvalidDelays(self):
-        balancer = rpc.DelayLoadBalancer(False)
+        balancer = loadbalance.DelayLoadBalancer(False)
         conns = [self.conn_cls('127.0.0.1:11111', avg_delay=-1),
                  self.conn_cls('127.0.0.1:11112', avg_delay=-1),
                  self.conn_cls('127.0.0.1:11113', avg_delay=-1)]
