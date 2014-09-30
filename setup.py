@@ -56,7 +56,16 @@ if __name__ == '__main__':
     setup(name='recall',
           version=version,
           description="Python High performance RPC framework based on protobuf",
-          classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
+          classifiers=[
+              'Development Status :: 3 - Alpha',
+              'Environment :: Web Environment',
+              'Intended Audience :: Developers',
+              'License :: OSI Approved :: MIT License',
+              'Operating System :: POSIX',
+              'Programming Language :: Python',
+              'Programming Language :: Python :: 2.7',
+              'Topic :: Internet'
+	  ],
           keywords='rpc gevent',
           author='Yaolong Huang',
           author_email='airekans@gmail.com',
