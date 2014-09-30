@@ -61,3 +61,4 @@ class DelayLoadBalancer(LoadBalancerBase):
 
         # should not reach here
         return random.choice(conns)
+

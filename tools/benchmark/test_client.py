@@ -1,5 +1,5 @@
 from recall import rpc
-from test_proto import test_pb2
+from tests.test_proto import test_pb2
 import sys
 import gevent.event
 import gevent
