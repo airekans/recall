@@ -207,15 +207,15 @@ class TcpConnection(object):
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_timeout = 3
         self._socket = TcpConnection.socket_cls()
-        self._is_closed = False
-        self.connect()  # TODO: this may cause problem
+        self._is_closed = True
 
         self._send_task_queue = gevent.queue.Queue()
         self._recv_infos = {}
         self._timeout_queue = []
-        self._spawn_workers()
-
         self._stat = TcpConnectionStat()
+
+        self.connect()  # TODO: this may cause problem
+
 
     def _spawn_workers(self):
         self._workers = [gevent.spawn(self.send_loop), gevent.spawn(self.recv_loop),
@@ -226,6 +226,9 @@ class TcpConnection(object):
         self._socket.setsockopt(gevent.socket.SOL_TCP, gevent.socket.TCP_NODELAY, 1)
         self._socket.setsockopt(gevent.socket.IPPROTO_TCP, gevent.socket.TCP_NODELAY, 1)
         self.change_state(TcpConnection.CONNECTED)
+        self._is_closed = False
+
+        self._spawn_workers()
 
     def close(self):
         if self._is_closed:
@@ -237,7 +240,6 @@ class TcpConnection(object):
         self.change_state(TcpConnection.CLOSED)
 
         # clear all data
-        # TODO: put the un-sent tasks to other connections in the channel.
         while not self._send_task_queue.empty():
             try:
                 self._send_task_queue.get_nowait()
@@ -542,6 +544,13 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     def close(self):
         for conn in self._good_connections:
             conn.close()
+    
+    def is_connected(self):
+        return len(self._good_connections) > 0
+    
+    def wait_until_connected(self):
+        while len(self._good_connections) == 0:
+            gevent.sleep(1)
 
     def on_conn_state_changed(self, conn, old_state, new_state):
         try:  # TODO: this try block should be removed in production
@@ -678,6 +687,8 @@ class RpcClient(object):
         if isinstance(addr, list):
             addr = tuple(addr)
         if addr not in self._channels:
+            # if TcpConnection connects for a long time, and
+            # other client use get_tcp_channel may cause problem.
             channel = RpcClient.tcp_channel_class(addr, spawn=self._pool.spawn)
             self._channels[addr] = channel
         else:
