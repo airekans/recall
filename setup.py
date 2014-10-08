@@ -4,7 +4,7 @@ import sys
 import os
 import subprocess
 
-version = '0.1'
+version = '0.1.1'
 
 # Find the Protocol Compiler.
 if 'PROTOC' in os.environ and os.path.exists(os.environ['PROTOC']):
