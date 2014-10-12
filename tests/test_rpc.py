@@ -283,6 +283,39 @@ class LoadBalancerTest(unittest.TestCase):
         print [(conn.get_avg_delay_per_min(), cnt) for conn, cnt in conn_map.iteritems()]
 
 
+class TcpConnectionTest(unittest.TestCase):
+
+    def setUp(self):
+        self.conn = FakeTcpConnection('127.0.0.1:11111')
+
+    def tearDown(self):
+        rpc.TcpConnection.socket_cls = FakeTcpSocket
+
+    def test_not_connected_after_getting_connection(self):
+        self.assertFalse(self.conn.is_connected())
+        self.conn.connect()
+        self.assertTrue(self.conn.is_connected())
+
+    def test_not_connected_after_connect_fail(self):
+        class ConnectFailSocket(FakeTcpSocket):
+            def connect(self, addr):
+                raise gevent.socket.error(123, 'connect fail')
+
+        rpc.TcpConnection.socket_cls = ConnectFailSocket
+        self.assertFalse(self.conn.is_connected())
+        self.assertRaises(rpc.TcpConnection.Exception, self.conn.connect)
+        self.assertFalse(self.conn.is_connected())
+
+    def test_reconnect_after_close(self):
+        self.assertFalse(self.conn.is_connected())
+
+        for _ in xrange(3):
+            self.conn.connect()
+            self.assertTrue(self.conn.is_connected())
+            self.conn.close()
+            self.assertFalse(self.conn.is_connected())
+
+
 class TcpChannelTest(unittest.TestCase):
 
     def setUp(self):
