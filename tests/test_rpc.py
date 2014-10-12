@@ -292,6 +292,7 @@ class TcpChannelTest(unittest.TestCase):
     def setUp(self):
         self.channel = FakeTcpChannel('127.0.0.1:11111', None, recv_content="")
         self.channel.connect()
+        self.assertTrue(self.channel.is_connected())
         self.assertTrue(self.channel.get_socket().is_connected())
 
         self.service_stub = test_pb2.TestService_Stub(self.channel)
@@ -317,6 +318,27 @@ class TcpChannelTest(unittest.TestCase):
         meta_info = rpc_meta_pb2.MetaInfo(flow_id=flow_id, service_name=self.service_descriptor.full_name,
                                           method_name=self.method.name)
         return rpc._serialize_message(meta_info, msg)
+
+    def test_not_connected_after_getting_channel(self):
+        channel = FakeTcpChannel('127.0.0.1:11111', None, recv_content="",
+                                 heartbeat_interval=2)
+        self.assertFalse(channel.is_connected())
+
+    def test_connect_multiple_addr_and_fail_some(self):
+        class ConnectFailTcpConnection(FakeTcpConnection):
+            def connect(self):
+                if self._addr[1] == 11112:
+                    raise rpc.TcpConnection.Exception(213, 'connect fail')
+                else:
+                    FakeTcpConnection.connect(self)
+
+        FakeTcpChannel.my_conn_cls = ConnectFailTcpConnection
+        channel = FakeTcpChannel(('127.0.0.1:11111', '127.0.0.1:11112'),
+                                 None, recv_content="", heartbeat_interval=2)
+        self.assertFalse(channel.is_connected())
+
+        channel.connect()
+        self.assertEqual(1, len(channel.get_connections()))
 
     def test_CallMethod(self):
         channel = self.channel
@@ -683,17 +705,32 @@ class RpcClientTest(unittest.TestCase):
         rpc.RpcClient.tcp_channel_class = FakeTcpChannel
         self.client = rpc.RpcClient()
 
+    def tearDown(self):
+        FakeTcpChannel.my_conn_cls = FakeTcpConnection
+
     def test_get_tcp_channel_with_one_ip(self):
         test_addr = '127.0.0.1:30002'
         channel1 = self.client.get_tcp_channel(test_addr)
         channel2 = self.client.get_tcp_channel(test_addr)
         self.assertIs(channel1, channel2)
+        self.assertTrue(channel1.is_connected())
 
     def test_get_tcp_channel_with_multiple_ips(self):
         test_addrs = ('127.0.0.1:30002', '192.168.1.12:30003')
         channel1 = self.client.get_tcp_channel(test_addrs)
         channel2 = self.client.get_tcp_channel(test_addrs)
         self.assertIs(channel1, channel2)
+
+    def test_get_tcp_channel_without_wait(self):
+        class SlowConnectTcpConnection(FakeTcpConnection):
+            def connect(self):
+                gevent.sleep(2)
+
+        FakeTcpChannel.my_conn_cls = SlowConnectTcpConnection
+
+        test_addr = '127.0.0.1:30002'
+        channel = self.client.get_tcp_channel(test_addr, False)
+        self.assertFalse(channel.is_connected())
 
 
 class FakeRpcServer(rpc.RpcServer):

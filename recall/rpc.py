@@ -184,6 +184,10 @@ class TcpConnection(object):
         def __init__(self, err_code, err_msg):
             self.err_code, self.err_msg = err_code, err_msg
 
+        def __str__(self):
+            return "<TcpConnectionError (%d, '%s')>" % \
+                   (self.err_code, self.err_msg)
+
     class RequestData(object):
         def __init__(self, is_async, *call_args):
             self.begin_time = 0
@@ -215,19 +219,25 @@ class TcpConnection(object):
         self._workers = []
         self._stat = TcpConnectionStat()
 
+    def __str__(self):
+        return '<TcpConnection %s>' % str(self._addr)
+
     def _spawn_workers(self):
         self._workers = [gevent.spawn(self.send_loop), gevent.spawn(self.recv_loop),
                          gevent.spawn(self.timeout_loop), gevent.spawn(self.heartbeat_loop)]
 
     # client should call connect after getting TcpConnection
     def connect(self):
-        self._socket.connect(self._addr)
-        self._socket.setsockopt(gevent.socket.SOL_TCP, gevent.socket.TCP_NODELAY, 1)
-        self._socket.setsockopt(gevent.socket.IPPROTO_TCP, gevent.socket.TCP_NODELAY, 1)
-        self.change_state(TcpConnection.CONNECTED)
-        self._is_closed = False
+        try:
+            self._socket.connect(self._addr)
+            self._socket.setsockopt(gevent.socket.SOL_TCP, gevent.socket.TCP_NODELAY, 1)
+            self._socket.setsockopt(gevent.socket.IPPROTO_TCP, gevent.socket.TCP_NODELAY, 1)
+            self.change_state(TcpConnection.CONNECTED)
+            self._is_closed = False
 
-        self._spawn_workers()
+            self._spawn_workers()
+        except gevent.socket.error, e:
+            raise TcpConnection.Exception(e.errno, e.strerror)
 
     def close(self):
         if self._is_closed:
@@ -550,8 +560,12 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     def connect(self):
         if not self.is_connected():
             for conn in self._bad_connections:
-                conn.connect()
-    
+                try:
+                    conn.connect()
+                except TcpConnection.Exception, e:
+                    logging.warning('connection %s fail: %s' % (conn, str(e)))
+                    # just ignore it and continue connect next one
+
     def is_connected(self):
         return len(self._good_connections) > 0
     
@@ -707,7 +721,7 @@ class RpcClient(object):
 
         self._pool.join()
 
-    def get_tcp_channel(self, addr, is_wait_connected = True):
+    def get_tcp_channel(self, addr, is_wait_connected=True):
         if isinstance(addr, list):
             addr = tuple(addr)
         if addr not in self._channels:
