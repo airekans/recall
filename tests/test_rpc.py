@@ -131,11 +131,12 @@ class FakeTcpChannel(rpc.TcpChannel):
     def __init__(self, addr, spawn, recv_content='', heartbeat_interval=30):
         rpc.TcpChannel.conn_cls = FakeTcpChannel.my_conn_cls
         rpc.TcpChannel.__init__(self, addr)
-        self.socket = self._good_connections[0].get_socket()
+
+        self.socket = self._bad_connections[0].get_socket()
         if recv_content:
             self.socket.set_recv_content(recv_content)
 
-        for conn in self._good_connections:
+        for conn in self._bad_connections:
             conn.set_heartbeat_interval(heartbeat_interval)
             conn.set_flow_func(self._get_flow_id)
 
@@ -290,6 +291,7 @@ class TcpChannelTest(unittest.TestCase):
 
     def setUp(self):
         self.channel = FakeTcpChannel('127.0.0.1:11111', None, recv_content="")
+        self.channel.connect()
         self.assertTrue(self.channel.get_socket().is_connected())
 
         self.service_stub = test_pb2.TestService_Stub(self.channel)
@@ -522,6 +524,7 @@ class TcpChannelTest(unittest.TestCase):
 
         addrs = ('127.0.0.1:11111', '127.0.0.1:11112')
         channel = TestUserFlowIdTcpChannel(addrs, None, recv_content="")
+        channel.connect()
         self.assertEqual(0, channel.get_flow_id())
         conns = channel.get_connections()
         self.assertEqual(len(addrs), len(conns))
@@ -560,6 +563,7 @@ class TcpChannelTest(unittest.TestCase):
     def test_connection_heartbeat(self):
         channel = FakeTcpChannel('127.0.0.1:11111', None, recv_content="",
                                  heartbeat_interval=2)
+        channel.connect()
         self.assertTrue(self.channel.get_socket().is_connected())
         socket = channel.get_socket()
 
@@ -580,6 +584,7 @@ class TcpChannelTest(unittest.TestCase):
         FakeTcpSocket.global_is_client = False
         channel = FakeTcpChannel('127.0.0.1:11111', None, recv_content="",
                                  heartbeat_interval=1)
+        channel.connect()
         self.assertTrue(self.channel.get_socket().is_connected())
         good_conns = channel.get_connections()
         self.assertEqual(1, len(good_conns))
@@ -624,6 +629,7 @@ class TcpChannelTest(unittest.TestCase):
         addrs = ('127.0.0.1:11111', '127.0.0.1:11112')
         channel = FakeTcpChannel(addrs, None, recv_content="",
                                  heartbeat_interval=1)
+        channel.connect()
 
         conns = channel.get_connections()
         self.assertEqual(2, len(conns))

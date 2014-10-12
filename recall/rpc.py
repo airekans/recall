@@ -212,15 +212,14 @@ class TcpConnection(object):
         self._send_task_queue = gevent.queue.Queue()
         self._recv_infos = {}
         self._timeout_queue = []
+        self._workers = []
         self._stat = TcpConnectionStat()
-
-        self.connect()  # TODO: this may cause problem
-
 
     def _spawn_workers(self):
         self._workers = [gevent.spawn(self.send_loop), gevent.spawn(self.recv_loop),
                          gevent.spawn(self.timeout_loop), gevent.spawn(self.heartbeat_loop)]
 
+    # client should call connect after getting TcpConnection
     def connect(self):
         self._socket.connect(self._addr)
         self._socket.setsockopt(gevent.socket.SOL_TCP, gevent.socket.TCP_NODELAY, 1)
@@ -516,22 +515,22 @@ class TcpChannel(google.protobuf.service.RpcChannel):
         google.protobuf.service.RpcChannel.__init__(self)
         self._flow_id = 0
         self._addr = addr
+        self._user_load_balancer = load_balancer
+        self._balancer = None
 
         self._good_connections = []
         self._bad_connections = []
         for ip_port in self.resolve_addr(addr):
-            TcpChannel.conn_cls(ip_port, self.on_conn_state_changed,
-                                self._get_flow_id, spawn=spawn)
+            conn = TcpChannel.conn_cls(ip_port, self.on_conn_state_changed,
+                                       self._get_flow_id, spawn=spawn)
+            # because these connections is not connected,
+            # put them to bad connections
+            self._bad_connections.append(conn)
+
             # no need to add conn because it will
             # add itself in state_changed function.
 
-        if len(self._good_connections) == 1:
-            self._balancer = loadbalance.SingleConnLoadBalancer()
-        elif load_balancer is not None:
-            self._balancer = load_balancer
-        else:
-            self._balancer = TcpChannel._fixed_load_balancer
-        logging.info('use %s as load balancer' % self._balancer.__class__.__name__)
+        self._connected_event = gevent.event.Event()
 
     def __del__(self):
         self.close()
@@ -541,16 +540,26 @@ class TcpChannel(google.protobuf.service.RpcChannel):
         self._flow_id += 1
         return flow_id
 
+    # after close is called, the channel cannot be used
     def close(self):
         for conn in self._good_connections:
             conn.close()
+
+        self._good_connections = []
+
+    def connect(self):
+        if not self.is_connected():
+            for conn in self._bad_connections:
+                conn.connect()
     
     def is_connected(self):
         return len(self._good_connections) > 0
     
     def wait_until_connected(self):
         while len(self._good_connections) == 0:
-            gevent.sleep(1)
+            self._connected_event.wait()
+
+        self._connected_event.clear()
 
     def on_conn_state_changed(self, conn, old_state, new_state):
         try:  # TODO: this try block should be removed in production
@@ -581,6 +590,20 @@ class TcpChannel(google.protobuf.service.RpcChannel):
                     self._good_connections.remove(conn)
                 else:  # TcpConnection.UNHEALTHY
                     self._bad_connections.remove(conn)
+
+            if len(self._good_connections) == 0:
+                return
+            else:
+                self._connected_event.set()
+
+            # choose load balancer
+            if len(self._good_connections) == 1:
+                self._balancer = loadbalance.SingleConnLoadBalancer()
+            elif self._user_load_balancer is not None:
+                self._balancer = self._user_load_balancer
+            else:
+                self._balancer = TcpChannel._fixed_load_balancer
+            logging.info('use %s as load balancer' % self._balancer.__class__.__name__)
         except:
             assert False
             raise
@@ -657,6 +680,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     # when it's not None, it means the call is asynchronous
     def CallMethod(self, method_descriptor, rpc_controller,
                    request, response_class, done):
+        assert len(self._good_connections) > 0
         flow_id = self._get_flow_id()
         conn = self._load_balance(flow_id, rpc_controller, request)
 
@@ -683,7 +707,7 @@ class RpcClient(object):
 
         self._pool.join()
 
-    def get_tcp_channel(self, addr):
+    def get_tcp_channel(self, addr, is_wait_connected = True):
         if isinstance(addr, list):
             addr = tuple(addr)
         if addr not in self._channels:
@@ -691,8 +715,14 @@ class RpcClient(object):
             # other client use get_tcp_channel may cause problem.
             channel = RpcClient.tcp_channel_class(addr, spawn=self._pool.spawn)
             self._channels[addr] = channel
+
+            # connect asynchronously
+            self._pool.spawn(channel.connect)
         else:
             channel = self._channels[addr]
+
+        if is_wait_connected:
+            channel.wait_until_connected()
 
         return channel
 
