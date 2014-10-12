@@ -210,7 +210,7 @@ class TcpConnection(object):
         self._spawn = spawn
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_timeout = 3
-        self._socket = TcpConnection.socket_cls()
+        self._socket = None
         self._is_closed = True
 
         self._send_task_queue = gevent.queue.Queue()
@@ -226,9 +226,17 @@ class TcpConnection(object):
         self._workers = [gevent.spawn(self.send_loop), gevent.spawn(self.recv_loop),
                          gevent.spawn(self.timeout_loop), gevent.spawn(self.heartbeat_loop)]
 
+    def get_addr(self):
+        return self._addr
+
+    def is_connected(self):
+        return self._socket is not None
+
     # client should call connect after getting TcpConnection
     def connect(self):
         try:
+            assert self._socket is None
+            self._socket = TcpConnection.socket_cls()
             self._socket.connect(self._addr)
             self._socket.setsockopt(gevent.socket.SOL_TCP, gevent.socket.TCP_NODELAY, 1)
             self._socket.setsockopt(gevent.socket.IPPROTO_TCP, gevent.socket.TCP_NODELAY, 1)
@@ -237,6 +245,7 @@ class TcpConnection(object):
 
             self._spawn_workers()
         except gevent.socket.error, e:
+            self._socket = None
             raise TcpConnection.Exception(e.errno, e.strerror)
 
     def close(self):
@@ -270,6 +279,12 @@ class TcpConnection(object):
         # the statements after this call will not be executed.
         if len(self._workers) > 0:
             gevent.killall(self._workers)
+
+        # socket has to be set to None here, because in _finish_rpc
+        # the control flow may be switched to another greenlet.
+        # And in TcpChannel, it may reconnect the connection.
+        # If we don't set it at last, it may cause problem.
+        self._socket = None
 
     def change_state(self, state):
         if self._state != state:
@@ -527,7 +542,9 @@ class TcpChannel(google.protobuf.service.RpcChannel):
         self._addr = addr
         self._user_load_balancer = load_balancer
         self._balancer = None
+        self._spawn = spawn
 
+        self._all_connections = []
         self._good_connections = []
         self._bad_connections = []
         for ip_port in self.resolve_addr(addr):
@@ -535,12 +552,14 @@ class TcpChannel(google.protobuf.service.RpcChannel):
                                        self._get_flow_id, spawn=spawn)
             # because these connections is not connected,
             # put them to bad connections
-            self._bad_connections.append(conn)
+            self._all_connections.append(conn)
 
             # no need to add conn because it will
             # add itself in state_changed function.
 
         self._connected_event = gevent.event.Event()
+        self._last_connect_time = time.time()
+        self._connect_interval = 30
 
     def __del__(self):
         self.close()
@@ -558,13 +577,18 @@ class TcpChannel(google.protobuf.service.RpcChannel):
         self._good_connections = []
 
     def connect(self):
+        self._last_connect_time = time.time()
         if not self.is_connected():
-            for conn in self._bad_connections:
-                try:
+            self._do_connect()
+
+    def _do_connect(self):
+        for conn in self._all_connections:
+            try:
+                if not conn.is_connected():
                     conn.connect()
-                except TcpConnection.Exception, e:
-                    logging.warning('connection %s failed: %s' % (conn, str(e)))
-                    # just ignore it and continue connect next one
+            except TcpConnection.Exception, e:
+                logging.warning('connection %s failed: %s' % (conn, str(e)))
+                # just ignore it and continue connect next one
 
     def is_connected(self):
         return len(self._good_connections) > 0
@@ -592,8 +616,8 @@ class TcpChannel(google.protobuf.service.RpcChannel):
                     unsent_tasks = conn.get_pending_send_tasks()
                     for is_async, call_args in unsent_tasks:
                         (flow_id, method_descriptor,
-                          rpc_controller, request, response_class,
-                          done) = call_args
+                         rpc_controller, request, response_class,
+                         done) = call_args
                         conn = self._load_balance(flow_id, rpc_controller, request)
                         self._call_method_on_conn(conn, flow_id, method_descriptor,
                                                   rpc_controller, request, response_class,
@@ -695,6 +719,13 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     def CallMethod(self, method_descriptor, rpc_controller,
                    request, response_class, done):
         assert len(self._good_connections) > 0
+        if len(self._all_connections) > \
+                len(self._good_connections) + len(self._bad_connections):
+            now = time.time()
+            if now - self._last_connect_time >= self._connect_interval:
+                # connect async
+                self._spawn(self._do_connect)
+
         flow_id = self._get_flow_id()
         conn = self._load_balance(flow_id, rpc_controller, request)
 
