@@ -563,7 +563,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
                 try:
                     conn.connect()
                 except TcpConnection.Exception, e:
-                    logging.warning('connection %s fail: %s' % (conn, str(e)))
+                    logging.warning('connection %s failed: %s' % (conn, str(e)))
                     # just ignore it and continue connect next one
 
     def is_connected(self):
