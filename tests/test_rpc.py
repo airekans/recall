@@ -128,9 +128,10 @@ class FakeTcpChannel(rpc.TcpChannel):
 
     my_conn_cls = FakeTcpConnection
 
-    def __init__(self, addr, spawn, heartbeat_interval=30):
+    def __init__(self, addr, spawn, heartbeat_interval=30,
+                 connect_interval=30):
         rpc.TcpChannel.conn_cls = FakeTcpChannel.my_conn_cls
-        rpc.TcpChannel.__init__(self, addr)
+        rpc.TcpChannel.__init__(self, addr, connect_interval=connect_interval)
 
         for conn in self._all_connections:
             conn.set_heartbeat_interval(heartbeat_interval)
@@ -710,6 +711,37 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(0, problem_conn.get_pending_send_task_num())
         good_conns = channel.get_connections()
         self.assertEqual(1, len(good_conns))
+
+    def test_single_connection_failed_and_reconnect(self):
+        channel = FakeTcpChannel('127.0.0.1:11111', None,
+                                 connect_interval=1)
+        channel.connect()
+        self.assertEqual(1, len(channel.get_connections()))
+
+        conn = channel.get_connections()[0]
+        self.assertTrue(conn.is_connected())
+
+        conn.close()
+        self.assertFalse(channel.is_connected())
+        self.assertFalse(conn.is_connected())
+        controller = rpc.RpcController()
+        res = channel.CallMethod(self.method, controller,
+                                 self.request, self.response_class, None)
+        self.assertIsNone(res)
+        self.assertEqual(rpc.RpcController.CONN_FAILED_ERROR,
+                         controller.err_code)
+
+        gevent.sleep(2)
+        controller = rpc.RpcController()
+        res = channel.CallMethod(self.method, controller,
+                                 self.request, self.response_class, None)
+        self.assertIsNone(res)
+        self.assertEqual(rpc.RpcController.CONN_FAILED_ERROR,
+                         controller.err_code)
+
+        gevent.sleep(1)
+        self.assertTrue(conn.is_connected())
+        self.assertTrue(channel.is_connected())
 
     def test_resolve_addr_with_single_addr(self):
         expected_addrs = [('127.0.0.1', 30012)]

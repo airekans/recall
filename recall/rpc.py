@@ -542,7 +542,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     _fixed_load_balancer = loadbalance.FixedLoadBalancer()
 
     def __init__(self, addr, load_balancer=None,
-                 spawn=gevent.spawn):
+                 spawn=gevent.spawn, connect_interval=30):
         google.protobuf.service.RpcChannel.__init__(self)
         self._flow_id = 0
         self._addr = addr
@@ -565,7 +565,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
 
         self._connected_event = gevent.event.Event()
         self._last_connect_time = time.time()
-        self._connect_interval = 30
+        self._connect_interval = connect_interval
 
     def __del__(self):
         self.close()
