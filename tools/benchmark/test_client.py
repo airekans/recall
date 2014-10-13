@@ -1,16 +1,19 @@
 from recall import rpc
-from tests.test_proto import test_pb2
+from proto import test_pb2
 import sys
 import gevent.event
 import gevent
 import psutil
 import GreenletProfiler
+import logging
 
 
 def main():
     if len(sys.argv) < 3:
         print 'Usage: %s REQ_PER_SEC SERVER_ADDR' % sys.argv[0]
         sys.exit(1)
+
+    logging.basicConfig(level=logging.DEBUG)
 
     p = psutil.Process()
     p.set_cpu_affinity([2])

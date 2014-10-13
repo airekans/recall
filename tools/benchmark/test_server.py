@@ -1,5 +1,5 @@
 from recall import rpc
-from tests.test_proto import test_pb2
+from proto import test_pb2
 import psutil
 import GreenletProfiler
 

@@ -70,6 +70,7 @@ class RpcController(google.protobuf.service.RpcController):
     WRONG_RSP_META_ERROR = 102
     WRONG_MSG_NAME_ERROR = 103
     SERVER_CLOSE_CONN_ERROR = 104
+    CONN_FAILED_ERROR = 105
 
     def __init__(self, method_timeout=0, flow_id=None):
         self.err_code = RpcController.SUCCESS
@@ -275,16 +276,16 @@ class TcpConnection(object):
 
         self._recv_infos.clear()
 
-        # kill all workers in the last step, because if a worker calls this function,
-        # the statements after this call will not be executed.
-        if len(self._workers) > 0:
-            gevent.killall(self._workers)
-
         # socket has to be set to None here, because in _finish_rpc
         # the control flow may be switched to another greenlet.
         # And in TcpChannel, it may reconnect the connection.
         # If we don't set it at last, it may cause problem.
         self._socket = None
+
+        # kill all workers in the last step, because if a worker calls this function,
+        # the statements after this call will not be executed.
+        if len(self._workers) > 0:
+            gevent.killall(self._workers)
 
     def change_state(self, state):
         if self._state != state:
@@ -718,13 +719,21 @@ class TcpChannel(google.protobuf.service.RpcChannel):
     # when it's not None, it means the call is asynchronous
     def CallMethod(self, method_descriptor, rpc_controller,
                    request, response_class, done):
-        assert len(self._good_connections) > 0
         if len(self._all_connections) > \
                 len(self._good_connections) + len(self._bad_connections):
             now = time.time()
             if now - self._last_connect_time >= self._connect_interval:
                 # connect async
+                logging.info('try reconnect')
+                self._last_connect_time = now
                 self._spawn(self._do_connect)
+
+        if len(self._good_connections) == 0:
+            rpc_controller.SetFailed((RpcController.CONN_FAILED_ERROR,
+                                      'No connection is valid'))
+            if done is not None:
+                self._spawn(done, rpc_controller, None)
+            return None
 
         flow_id = self._get_flow_id()
         conn = self._load_balance(flow_id, rpc_controller, request)
@@ -765,6 +774,8 @@ class RpcClient(object):
             self._pool.spawn(channel.connect)
         else:
             channel = self._channels[addr]
+            if not channel.is_connected():
+                self._pool.spawn(channel.connect)
 
         if is_wait_connected:
             channel.wait_until_connected()
