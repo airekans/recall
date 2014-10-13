@@ -339,9 +339,10 @@ class TcpChannelTest(unittest.TestCase):
     def tearDown(self):
         FakeTcpSocket.global_is_client = None
         FakeTcpChannel.my_conn_cls = FakeTcpConnection
-        sock = self.channel.get_socket()
+        conns = self.channel.get_connections()
         self.channel.close()
-        self.assertFalse(sock.is_connected())
+        for conn in conns:
+            self.assertFalse(conn.is_connected())
 
     def get_serialize_message(self, flow_id, msg):
         meta_info = rpc_meta_pb2.MetaInfo(flow_id=flow_id, service_name=self.service_descriptor.full_name,
@@ -371,18 +372,19 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethod(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
         rsp = self.response_class(return_code=0, msg='SUCCESS')
         serialized_response = self.get_serialize_message(0, rsp)
-        channel.get_socket().set_recv_content(serialized_response)
+        sock.set_recv_content(serialized_response)
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertEqual(rsp, actual_rsp, str(actual_rsp))
 
@@ -405,22 +407,20 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithSendingError(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         def send_func(_buf):
             from socket import error as soc_error
             raise soc_error
 
-        channel.get_socket().set_send_func(send_func)
-
-        serialized_request = self.get_serialize_message(0, self.request)
-        rsp = self.response_class(return_code=0, msg='SUCCESS')
+        sock.set_send_func(send_func)
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual('', channel.get_socket().get_send_content())
+        self.assertEqual('', sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -428,16 +428,17 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithEmptyBuffer(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
-        channel.get_socket().set_recv_content('')
+        sock.set_recv_content('')
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -445,16 +446,18 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithBufferNotStartsWithPb(self):
         channel = self.channel
+        sock = channel.get_socket()
+        self.assertIsNotNone(sock)
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
-        channel.get_socket().set_recv_content('AB1231')
+        sock.set_recv_content('AB1231')
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -462,18 +465,19 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithWrongFlowId(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
         rsp = self.response_class(return_code=0, msg='SUCCESS')
         serialized_response = self.get_serialize_message(2, rsp)
-        channel.get_socket().set_recv_content(serialized_response)
+        sock.set_recv_content(serialized_response)
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -499,6 +503,7 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithWrongMetaInfo(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
@@ -507,13 +512,13 @@ class TcpChannelTest(unittest.TestCase):
                                           service_name='WrongServiceName',
                                           method_name='WrongMethodName')
         serialized_response = rpc._serialize_message(meta_info, rsp)
-        channel.get_socket().set_recv_content(serialized_response)
+        sock.set_recv_content(serialized_response)
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -521,6 +526,7 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodWithErrorInRspMeta(self):
         channel = self.channel
+        sock = channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
@@ -531,13 +537,13 @@ class TcpChannelTest(unittest.TestCase):
                                           method_name=self.method.name,
                                           has_error=True)
         serialized_response = rpc._serialize_message(meta_info, rsp)
-        channel.get_socket().set_recv_content(serialized_response)
+        sock.set_recv_content(serialized_response)
 
         controller = rpc.RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
@@ -545,12 +551,13 @@ class TcpChannelTest(unittest.TestCase):
 
     def test_CallMethodAsync(self):
         channel = self.channel
+        sock = self.channel.get_socket()
         self.assertEqual(0, channel.get_flow_id())
 
         serialized_request = self.get_serialize_message(0, self.request)
         rsp = self.response_class(return_code=0, msg='SUCCESS')
         serialized_response = self.get_serialize_message(0, rsp)
-        channel.get_socket().set_recv_content(serialized_response)
+        sock.set_recv_content(serialized_response)
 
         controller = rpc.RpcController()
         actual_rsp = []
@@ -561,7 +568,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(0, len(actual_rsp))
         gevent.sleep(1)
 
-        self.assertEqual(serialized_request, channel.get_socket().get_send_content())
+        self.assertEqual(serialized_request, sock.get_send_content())
         self.assertEqual(1, channel.get_flow_id())
         self.assertEqual(1, len(actual_rsp))
         self.assertEqual(rsp, actual_rsp[0], str(actual_rsp))

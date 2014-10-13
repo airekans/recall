@@ -52,6 +52,13 @@ class Pool(object):
         self._pool.kill()
 
 
+def kill_all_but_this(greenlets):
+    this_greenlet = gevent.getcurrent()
+    for gl in greenlets:
+        if gl is not this_greenlet:
+            gl.kill(block=False)
+
+
 class BuiltinServiceImpl(rpc_meta_pb2.BuiltinService):
     def HeartBeat(self, rpc_controller, request, done):
         rsp = rpc_meta_pb2.HeartBeatResponse()
@@ -282,10 +289,8 @@ class TcpConnection(object):
         # If we don't set it at last, it may cause problem.
         self._socket = None
 
-        # kill all workers in the last step, because if a worker calls this function,
-        # the statements after this call will not be executed.
         if len(self._workers) > 0:
-            gevent.killall(self._workers)
+            kill_all_but_this(self._workers)
 
     def change_state(self, state):
         if self._state != state:
