@@ -577,10 +577,13 @@ class TcpChannel(google.protobuf.service.RpcChannel):
 
     # after close is called, the channel cannot be used
     def close(self):
-        for conn in self._good_connections:
-            conn.close()
+        for conn in self._all_connections:
+            if conn.is_connected():
+                conn.close()
 
         self._good_connections = []
+        self._bad_connections = []
+        self._all_connections = []
 
     def connect(self):
         self._last_connect_time = time.time()

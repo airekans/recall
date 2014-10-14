@@ -346,8 +346,10 @@ class TcpChannelTest(unittest.TestCase):
             self.assertFalse(conn.is_connected())
 
     def get_serialize_message(self, flow_id, msg):
-        meta_info = rpc_meta_pb2.MetaInfo(flow_id=flow_id, service_name=self.service_descriptor.full_name,
-                                          method_name=self.method.name)
+        meta_info = rpc_meta_pb2.MetaInfo(
+            flow_id=flow_id,
+            service_name=self.service_descriptor.full_name,
+            method_name=self.method.name)
         return rpc._serialize_message(meta_info, msg)
 
     def test_not_connected_after_getting_channel(self):
@@ -742,6 +744,43 @@ class TcpChannelTest(unittest.TestCase):
         gevent.sleep(1)
         self.assertTrue(conn.is_connected())
         self.assertTrue(channel.is_connected())
+
+    def test_multiple_connections_failed_and_reconnect(self):
+        FakeTcpSocket.global_is_client = False
+        channel = FakeTcpChannel(('127.0.0.1:11111', '127.0.0.1:11112'),
+                                 None, connect_interval=1)
+        channel.connect()
+        self.assertEqual(2, len(channel.get_connections()))
+
+        conn = channel.get_connections()[0]
+        self.assertTrue(conn.is_connected())
+
+        conn.close()
+        self.assertTrue(channel.is_connected())
+        self.assertFalse(conn.is_connected())
+        self.assertEqual(1, len(channel.get_connections()))
+
+        # done should not be called
+        done = lambda _c, _r: self.fail()
+        controller = rpc.RpcController()
+        res = channel.CallMethod(self.method, controller,
+                                 self.request, self.response_class, done)
+        self.assertIsNone(res)
+        self.assertEqual(rpc.RpcController.SUCCESS,
+                         controller.err_code)
+
+        gevent.sleep(2)
+        controller = rpc.RpcController()
+        res = channel.CallMethod(self.method, controller,
+                                 self.request, self.response_class, done)
+        self.assertIsNone(res)
+        self.assertEqual(rpc.RpcController.SUCCESS,
+                         controller.err_code)
+
+        gevent.sleep(1)
+        self.assertTrue(conn.is_connected())
+        self.assertTrue(channel.is_connected())
+        self.assertEqual(2, len(channel.get_connections()))
 
     def test_resolve_addr_with_single_addr(self):
         expected_addrs = [('127.0.0.1', 30012)]
