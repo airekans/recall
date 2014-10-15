@@ -120,7 +120,7 @@ def _serialize_message(meta_info, msg):
     return msg_buf
 
 
-def parse_meta(buf):
+def parse_meta(buf, meta_info=None):
     if len(buf) < 8:
         return None
 
@@ -129,7 +129,9 @@ def parse_meta(buf):
         return None
 
     meta_msg_buf = buf[8:8 + meta_len]
-    meta_info = rpc_meta_pb2.MetaInfo()
+    if meta_info is None:
+        meta_info = rpc_meta_pb2.MetaInfo()
+
     try:
         meta_info.ParseFromString(meta_msg_buf)
         return meta_len, pb_msg_len, meta_info
@@ -226,6 +228,8 @@ class TcpConnection(object):
         self._timeout_queue = []
         self._workers = []
         self._stat = TcpConnectionStat()
+
+        self._recv_meta_info = rpc_meta_pb2.MetaInfo()
 
     def __str__(self):
         return '<TcpConnection %s>' % str(self._addr)
@@ -484,7 +488,7 @@ class TcpConnection(object):
             logging.info('socket has been closed')
             return False
 
-        result = parse_meta(pb_buf)
+        result = parse_meta(pb_buf, self._recv_meta_info)
         if result is None:
             logging.warning('pb decode error, skip this message')
             return True
@@ -958,7 +962,7 @@ class RpcServer(object):
                     while sent_bytes < len(serialized_rsp):
                         sent_bytes += socket.send(serialized_rsp[sent_bytes:])
                 except soc_error as e:
-                    logging.warning('socket error: ' + str(e))
+                    logging.warning('socket send error: ' + str(e))
                     break
 
         workers = [gevent.spawn(recv_req), gevent.spawn(send_rsp)]
