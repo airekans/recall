@@ -557,6 +557,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
         self._all_connections = []
         self._good_connections = []
         self._bad_connections = []
+        # TODO: handle addr format error
         for ip_port in self.resolve_addr(addr):
             conn = TcpChannel.conn_cls(ip_port, self.on_conn_state_changed,
                                        self._get_flow_id, spawn=spawn)

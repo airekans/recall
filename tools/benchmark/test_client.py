@@ -1,28 +1,49 @@
 from recall import rpc
 from proto import test_pb2
-import sys
 import gevent.event
 import gevent
 import psutil
 import logging
 import time
 import greenprofile
+import optparse
 
 
 def main():
-    if len(sys.argv) < 3:
-        print 'Usage: %s REQ_PER_SEC SERVER_ADDR' % sys.argv[0]
-        sys.exit(1)
+    opt_parser = optparse.OptionParser(usage="%prog [options] REQ_PER_SEC "
+                                       "SERVER_ADDR [SERVER_ADDR1...]")
+    opt_parser.add_option('--profile', dest="is_profile",
+                          help="Turn on the profile", action="store_true",
+                          default=False)
+    opt_parser.add_option('--cpu-affinity', dest="cpu_affinity",
+                          help="Set the CPU affinity", type=int)
+    opt_parser.add_option('--runtime', dest="runtime",
+                          help="Run specified time and exit", type=int)
+
+    opts, args = opt_parser.parse_args()
+
+    if len(args) < 2:
+        opt_parser.error('please enter REQ_PER_SEC SERVER_ADDR')
+
+    req_num = args[0]
+    try:
+        req_num = int(req_num)
+    except ValueError:
+        opt_parser.error('please enter correct REQ_PER_SEC')
+
+    server_addrs = args[1:]
+
+    print 'connecting to %s' % str(server_addrs)
 
     logging.basicConfig(level=logging.DEBUG)
 
-    p = psutil.Process()
-    p.set_cpu_affinity([2])
+    if opts.cpu_affinity is not None:
+        p = psutil.Process()
+        p.set_cpu_affinity([opts.cpu_affinity])
 
-    with greenprofile.Profiler(False, 'client.profile'):
-        req_num, server_addr = int(sys.argv[1]), sys.argv[2]
+    with greenprofile.Profiler(opts.is_profile, 'client.profile'):
         client = rpc.RpcClient()
-        channel = client.get_tcp_channel(server_addr)
+        channel = client.get_tcp_channel(server_addrs)
         stub = test_pb2.TestService_Stub(channel)
 
         event = gevent.event.Event()
@@ -55,9 +76,10 @@ def main():
                     stub.TestMethod(controller, req, done)
 
                 sent_req_num = req_num
-                now = time.time()
-                if now - start_time >= 30:
-                    break
+                if opts.runtime is not None:
+                    now = time.time()
+                    if now - start_time >= opts.runtime:
+                        break
 
         finally:
             client.close()
