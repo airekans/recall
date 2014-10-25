@@ -543,6 +543,7 @@ class TcpConnection(object):
 class TcpChannel(google.protobuf.service.RpcChannel):
 
     conn_cls = TcpConnection
+    _default_load_balancer = loadbalance.DelayLoadBalancer()
     _fixed_load_balancer = loadbalance.FixedLoadBalancer()
 
     def __init__(self, addr, load_balancer=None,
@@ -654,7 +655,7 @@ class TcpChannel(google.protobuf.service.RpcChannel):
             elif self._user_load_balancer is not None:
                 self._balancer = self._user_load_balancer
             else:
-                self._balancer = TcpChannel._fixed_load_balancer
+                self._balancer = TcpChannel._default_load_balancer
             logging.info('use %s as load balancer' % self._balancer.__class__.__name__)
         except:
             assert False

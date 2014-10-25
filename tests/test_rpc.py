@@ -595,7 +595,7 @@ class TcpChannelTest(unittest.TestCase):
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
         self.assertEqual(1, channel.get_flow_id())
-        self.assertIs(conns[0], channel.user_conn)
+        self.assertIn(channel.user_conn, conns)
 
         # call again and the conn should change
         controller = rpc.RpcController()
@@ -603,7 +603,7 @@ class TcpChannelTest(unittest.TestCase):
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
         self.assertEqual(2, channel.get_flow_id())
-        self.assertIs(conns[1], channel.user_conn)
+        self.assertIn(channel.user_conn, conns)
 
         # call with user defined flow id
         controller = rpc.RpcController(flow_id=3)
