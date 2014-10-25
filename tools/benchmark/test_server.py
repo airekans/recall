@@ -3,6 +3,7 @@ from proto import test_pb2
 import psutil
 import greenprofile
 import optparse
+from recall.server import RpcServer
 
 
 class TestServiceImpl(test_pb2.TestService):
@@ -35,7 +36,7 @@ def main():
 
     with greenprofile.Profiler(is_profile, 'server.profile'):
         print 'server listen at %s' % str(addr)
-        server = rpc.RpcServer(addr)
+        server = RpcServer(addr)
         server.register_service(TestServiceImpl())
         try:
             server.run(print_stat_interval=60)

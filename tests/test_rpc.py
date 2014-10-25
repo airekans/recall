@@ -1,5 +1,6 @@
 from recall import rpc
 import unittest
+from recall.server import RpcServerStat, RpcServer
 from test_proto import test_pb2
 from recall.proto import rpc_meta_pb2
 from recall import loadbalance
@@ -839,13 +840,13 @@ class RpcClientTest(unittest.TestCase):
         self.assertFalse(channel.is_connected())
 
 
-class FakeRpcServer(rpc.RpcServer):
+class FakeRpcServer(RpcServer):
 
     def __init__(self, service_timeout=10):
         self._addr = ('127.0.0.1', 12345)
         self._services = {}
         self._service_timeout = service_timeout
-        self._stat = rpc.RpcServerStat()
+        self._stat = RpcServerStat()
         self._pool = None
         self._spawn = gevent.spawn
         self._register_builtin_services()
