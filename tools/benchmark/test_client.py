@@ -1,4 +1,3 @@
-from recall import client
 from proto import test_pb2
 import gevent.event
 import gevent
@@ -8,6 +7,7 @@ import time
 import greenprofile
 import optparse
 from recall.controller import RpcController
+import recall.client
 
 
 def main():
@@ -43,7 +43,7 @@ def main():
         p.set_cpu_affinity([opts.cpu_affinity])
 
     with greenprofile.Profiler(opts.is_profile, 'client.profile'):
-        client = client.RpcClient()
+        client = recall.client.RpcClient()
         channel = client.get_tcp_channel(server_addrs)
         stub = test_pb2.TestService_Stub(channel)
 
