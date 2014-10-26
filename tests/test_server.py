@@ -1,6 +1,7 @@
 import unittest
 import gevent
 from recall import rpc
+from recall.codec import serialize_message
 from recall.proto import rpc_meta_pb2
 from recall.server import RpcServer, RpcServerStat
 from test_proto import test_pb2
@@ -62,7 +63,7 @@ class RpcServerTest(unittest.TestCase):
         has_error = isinstance(msg, rpc_meta_pb2.ErrorResponse)
         meta_info = rpc_meta_pb2.MetaInfo(flow_id=flow_id, service_name=service_desc.full_name,
                                           method_name=method_name, has_error=has_error)
-        return rpc._serialize_message(meta_info, msg)
+        return serialize_message(meta_info, msg)
 
     def test_register_service(self):
         service_name = self.service_descriptor.full_name

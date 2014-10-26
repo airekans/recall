@@ -4,9 +4,9 @@ import struct
 import traceback
 import gevent
 from gevent import Timeout
+from recall.codec import serialize_message, parse_message, parse_meta
 from recall.controller import RpcController
 from recall.proto import rpc_meta_pb2
-from recall.rpc import _serialize_message, parse_meta, _parse_message
 from recall.util import Pool
 
 
@@ -182,7 +182,7 @@ class RpcServer(object):
                 except gevent.queue.Empty:
                     continue
 
-                serialized_rsp = _serialize_message(meta_info, rsp)
+                serialized_rsp = serialize_message(meta_info, rsp)
                 sent_bytes = 0
                 try:
                     while sent_bytes < len(serialized_rsp):
@@ -212,7 +212,7 @@ class RpcServer(object):
             logging.warning('cannot find the method: ' + meta_info.method_name)
             return None
 
-        msg = _parse_message(buf[8 + meta_len:8 + meta_len + pb_msg_len],
+        msg = parse_message(buf[8 + meta_len:8 + meta_len + pb_msg_len],
                              service.GetRequestClass(method))
         if msg is None:
             return None

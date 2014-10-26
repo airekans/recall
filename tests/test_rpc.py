@@ -3,6 +3,7 @@ import unittest
 import gevent
 
 from recall import rpc
+from recall.codec import serialize_message
 from recall.controller import RpcController
 from test_proto import test_pb2
 from recall.proto import rpc_meta_pb2
@@ -354,7 +355,7 @@ class TcpChannelTest(unittest.TestCase):
             flow_id=flow_id,
             service_name=self.service_descriptor.full_name,
             method_name=self.method.name)
-        return rpc._serialize_message(meta_info, msg)
+        return serialize_message(meta_info, msg)
 
     def test_not_connected_after_getting_channel(self):
         channel = FakeTcpChannel('127.0.0.1:11211', None,
@@ -518,7 +519,7 @@ class TcpChannelTest(unittest.TestCase):
         meta_info = rpc_meta_pb2.MetaInfo(flow_id=0,
                                           service_name='WrongServiceName',
                                           method_name='WrongMethodName')
-        serialized_response = rpc._serialize_message(meta_info, rsp)
+        serialized_response = serialize_message(meta_info, rsp)
         sock.set_recv_content(serialized_response)
 
         controller = RpcController()
@@ -543,7 +544,7 @@ class TcpChannelTest(unittest.TestCase):
                                           service_name=self.service_descriptor.full_name,
                                           method_name=self.method.name,
                                           has_error=True)
-        serialized_response = rpc._serialize_message(meta_info, rsp)
+        serialized_response = serialize_message(meta_info, rsp)
         sock.set_recv_content(serialized_response)
 
         controller = RpcController()
