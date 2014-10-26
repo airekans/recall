@@ -2,7 +2,7 @@ import unittest
 
 import gevent
 
-from recall import rpc
+from recall import client
 from recall.codec import serialize_message
 from recall.controller import RpcController
 from test_proto import test_pb2
@@ -83,9 +83,9 @@ def fake_spawn(func, *args, **kwargs):
     func(*args, **kwargs)
 
 
-class FakeTcpConnection(rpc.TcpConnection):
+class FakeTcpConnection(client.TcpConnection):
 
-    rpc.TcpConnection.socket_cls = FakeTcpSocket
+    client.TcpConnection.socket_cls = FakeTcpSocket
 
     def __init__(self, addr, evt_listener=None, get_flow_func=None,
                  spawn=None, send_task_num=None, load_balancer=None,
@@ -94,7 +94,7 @@ class FakeTcpConnection(rpc.TcpConnection):
             evt_listener = self.fake_state_evt_listener
         if get_flow_func is None:
             get_flow_func = self.fake_get_flow_func
-        rpc.TcpConnection.__init__(self, addr, evt_listener, get_flow_func,
+        client.TcpConnection.__init__(self, addr, evt_listener, get_flow_func,
                                    spawn=fake_spawn,
                                    heartbeat_interval=heartbeat_interval)
         self._send_task_num = send_task_num
@@ -128,14 +128,14 @@ class FakeTcpConnection(rpc.TcpConnection):
         self._heartbeat_timeout = hb_timeout
 
 
-class FakeTcpChannel(rpc.TcpChannel):
+class FakeTcpChannel(client.TcpChannel):
 
     my_conn_cls = FakeTcpConnection
 
     def __init__(self, addr, spawn, heartbeat_interval=30,
                  connect_interval=30):
-        rpc.TcpChannel.conn_cls = FakeTcpChannel.my_conn_cls
-        rpc.TcpChannel.__init__(self, addr, connect_interval=connect_interval)
+        client.TcpChannel.conn_cls = FakeTcpChannel.my_conn_cls
+        client.TcpChannel.__init__(self, addr, connect_interval=connect_interval)
 
         for conn in self._all_connections:
             conn.set_heartbeat_interval(heartbeat_interval)
@@ -295,7 +295,7 @@ class TcpConnectionTest(unittest.TestCase):
 
     def tearDown(self):
         self.conn.close()
-        rpc.TcpConnection.socket_cls = FakeTcpSocket
+        client.TcpConnection.socket_cls = FakeTcpSocket
 
     def test_not_connected_after_getting_connection(self):
         self.assertFalse(self.conn.is_connected())
@@ -307,9 +307,9 @@ class TcpConnectionTest(unittest.TestCase):
             def connect(self, addr):
                 raise gevent.socket.error(123, 'connect fail')
 
-        rpc.TcpConnection.socket_cls = ConnectFailSocket
+        client.TcpConnection.socket_cls = ConnectFailSocket
         self.assertFalse(self.conn.is_connected())
-        self.assertRaises(rpc.TcpConnection.Exception, self.conn.connect)
+        self.assertRaises(client.TcpConnection.Exception, self.conn.connect)
         self.assertFalse(self.conn.is_connected())
 
     def test_reconnect_after_close(self):
@@ -366,7 +366,7 @@ class TcpChannelTest(unittest.TestCase):
         class ConnectFailTcpConnection(FakeTcpConnection):
             def connect(self):
                 if self._addr[1] == 11112:
-                    raise rpc.TcpConnection.Exception(213, 'connect fail')
+                    raise client.TcpConnection.Exception(213, 'connect fail')
                 else:
                     FakeTcpConnection.connect(self)
 
@@ -813,8 +813,8 @@ class TcpChannelTest(unittest.TestCase):
 class RpcClientTest(unittest.TestCase):
 
     def setUp(self):
-        rpc.RpcClient.tcp_channel_class = FakeTcpChannel
-        self.client = rpc.RpcClient()
+        client.RpcClient.tcp_channel_class = FakeTcpChannel
+        self.client = client.RpcClient()
 
     def tearDown(self):
         FakeTcpChannel.my_conn_cls = FakeTcpConnection

@@ -1,4 +1,4 @@
-from recall import rpc
+from recall import client
 from proto import test_pb2
 import psutil
 import greenprofile

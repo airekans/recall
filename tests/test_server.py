@@ -1,11 +1,11 @@
 import unittest
 import gevent
-from recall import rpc
+
 from recall.codec import serialize_message
 from recall.proto import rpc_meta_pb2
 from recall.server import RpcServer, RpcServerStat
 from test_proto import test_pb2
-from test_rpc import FakeTcpSocket
+from test_client import FakeTcpSocket
 
 
 class FakeRpcServer(RpcServer):

@@ -1,3 +1,3 @@
-from recall import rpc
+from recall import client
 
 __author__ = 'airekans'
