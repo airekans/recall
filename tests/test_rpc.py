@@ -3,6 +3,7 @@ import unittest
 import gevent
 
 from recall import rpc
+from recall.controller import RpcController
 from test_proto import test_pb2
 from recall.proto import rpc_meta_pb2
 from recall import loadbalance
@@ -386,7 +387,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_response = self.get_serialize_message(0, rsp)
         sock.set_recv_content(serialized_response)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -401,7 +402,7 @@ class TcpChannelTest(unittest.TestCase):
 
         serialized_request = self.get_serialize_message(0, self.request)
 
-        controller = rpc.RpcController(method_timeout=1)
+        controller = RpcController(method_timeout=1)
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -409,7 +410,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.SERVICE_TIMEOUT, controller.err_code)
+        self.assertEqual(RpcController.SERVICE_TIMEOUT, controller.err_code)
 
     def test_CallMethodWithSendingError(self):
         channel = self.channel
@@ -422,7 +423,7 @@ class TcpChannelTest(unittest.TestCase):
 
         sock.set_send_func(send_func)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -430,7 +431,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
+        self.assertEqual(RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
 
     def test_CallMethodWithEmptyBuffer(self):
         channel = self.channel
@@ -440,7 +441,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_request = self.get_serialize_message(0, self.request)
         sock.set_recv_content('')
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -448,7 +449,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
+        self.assertEqual(RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
 
     def test_CallMethodWithBufferNotStartsWithPb(self):
         channel = self.channel
@@ -459,7 +460,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_request = self.get_serialize_message(0, self.request)
         sock.set_recv_content('AB1231')
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -467,7 +468,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
+        self.assertEqual(RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
 
     def test_CallMethodWithWrongFlowId(self):
         channel = self.channel
@@ -479,7 +480,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_response = self.get_serialize_message(2, rsp)
         sock.set_recv_content(serialized_response)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -487,7 +488,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
+        self.assertEqual(RpcController.SERVER_CLOSE_CONN_ERROR, controller.err_code)
 
     def test_CallMethodWithExceptionInRecv(self):
         channel = self.channel
@@ -499,7 +500,7 @@ class TcpChannelTest(unittest.TestCase):
 
         channel.get_socket().set_recv_func(recv_exception)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
 
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
@@ -520,7 +521,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_response = rpc._serialize_message(meta_info, rsp)
         sock.set_recv_content(serialized_response)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -528,7 +529,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertEqual(1, channel.get_flow_id())
         self.assertIsNone(actual_rsp)
         self.assertTrue(controller.Failed())
-        self.assertEqual(rpc.RpcController.WRONG_RSP_META_ERROR, controller.err_code)
+        self.assertEqual(RpcController.WRONG_RSP_META_ERROR, controller.err_code)
 
     def test_CallMethodWithErrorInRspMeta(self):
         channel = self.channel
@@ -545,7 +546,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_response = rpc._serialize_message(meta_info, rsp)
         sock.set_recv_content(serialized_response)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = channel.CallMethod(self.method, controller,
                                         self.request, self.response_class, None)
 
@@ -565,7 +566,7 @@ class TcpChannelTest(unittest.TestCase):
         serialized_response = self.get_serialize_message(0, rsp)
         sock.set_recv_content(serialized_response)
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         actual_rsp = []
         done = lambda ctrl, rsp: actual_rsp.append(rsp)
         result = channel.CallMethod(self.method, controller,
@@ -593,7 +594,7 @@ class TcpChannelTest(unittest.TestCase):
         conns = channel.get_connections()
         self.assertEqual(len(addrs), len(conns))
 
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
@@ -601,7 +602,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertIn(channel.user_conn, conns)
 
         # call again and the conn should change
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
@@ -609,7 +610,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertIn(channel.user_conn, conns)
 
         # call with user defined flow id
-        controller = rpc.RpcController(flow_id=3)
+        controller = RpcController(flow_id=3)
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
@@ -617,7 +618,7 @@ class TcpChannelTest(unittest.TestCase):
         self.assertIs(conns[1], channel.user_conn)
 
         # call again and the conn should be the same
-        controller = rpc.RpcController(flow_id=3)
+        controller = RpcController(flow_id=3)
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
@@ -705,7 +706,7 @@ class TcpChannelTest(unittest.TestCase):
             self.assertTrue(soc.is_connected())
 
         for _ in xrange(10):
-            controller = rpc.RpcController()
+            controller = RpcController()
             res = channel.CallMethod(self.method, controller,
                         self.request, self.response_class, done)
             self.assertIsNone(res)
@@ -729,19 +730,19 @@ class TcpChannelTest(unittest.TestCase):
         conn.close()
         self.assertFalse(channel.is_connected())
         self.assertFalse(conn.is_connected())
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
-        self.assertEqual(rpc.RpcController.CONN_FAILED_ERROR,
+        self.assertEqual(RpcController.CONN_FAILED_ERROR,
                          controller.err_code)
 
         gevent.sleep(2)
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, None)
         self.assertIsNone(res)
-        self.assertEqual(rpc.RpcController.CONN_FAILED_ERROR,
+        self.assertEqual(RpcController.CONN_FAILED_ERROR,
                          controller.err_code)
 
         gevent.sleep(1)
@@ -765,19 +766,19 @@ class TcpChannelTest(unittest.TestCase):
 
         # done should not be called
         done = lambda _c, _r: self.fail()
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, done)
         self.assertIsNone(res)
-        self.assertEqual(rpc.RpcController.SUCCESS,
+        self.assertEqual(RpcController.SUCCESS,
                          controller.err_code)
 
         gevent.sleep(2)
-        controller = rpc.RpcController()
+        controller = RpcController()
         res = channel.CallMethod(self.method, controller,
                                  self.request, self.response_class, done)
         self.assertIsNone(res)
-        self.assertEqual(rpc.RpcController.SUCCESS,
+        self.assertEqual(RpcController.SUCCESS,
                          controller.err_code)
 
         gevent.sleep(1)

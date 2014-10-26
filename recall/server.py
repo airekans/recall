@@ -4,8 +4,9 @@ import struct
 import traceback
 import gevent
 from gevent import Timeout
+from recall.controller import RpcController
 from recall.proto import rpc_meta_pb2
-from recall.rpc import RpcController, _serialize_message, parse_meta, _parse_message
+from recall.rpc import _serialize_message, parse_meta, _parse_message
 from recall.util import Pool
 
 

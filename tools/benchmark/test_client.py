@@ -7,6 +7,7 @@ import logging
 import time
 import greenprofile
 import optparse
+from recall.controller import RpcController
 
 
 def main():
@@ -72,7 +73,7 @@ def main():
                 sent_req_num, recv_rsp_num[0] = 0, 0
 
                 for _ in xrange(req_num):
-                    controller = rpc.RpcController()
+                    controller = RpcController()
                     stub.TestMethod(controller, req, done)
 
                 sent_req_num = req_num
