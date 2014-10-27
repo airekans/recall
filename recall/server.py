@@ -3,6 +3,8 @@ import logging
 import struct
 import traceback
 import gevent
+import gevent.server
+import gevent.socket
 from gevent import Timeout
 from recall.codec import serialize_message, parse_message, parse_meta
 from recall.controller import RpcController
