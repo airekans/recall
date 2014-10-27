@@ -98,6 +98,9 @@ class TcpConnection(object):
 
         self._recv_meta_info = rpc_meta_pb2.MetaInfo()
 
+    def __del__(self):
+        self.close()
+
     def __str__(self):
         return '<TcpConnection %s>' % str(self._addr)
 
