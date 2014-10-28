@@ -49,9 +49,6 @@ if __name__ == '__main__':
     server = RpcServer(addr)
     server.register_service(HelloServiceImpl())
     server.run(print_stat_interval=60)
-
-if __name__ == '__main__':
-    main()
 ```
 
 And to access Hello service, you can simply use `RpcClient` like the following:
